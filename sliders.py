@@ -1,5 +1,4 @@
 from collections import deque
-from heapq import heappush, heappop
 
 W = 1
 R = 2
@@ -191,94 +190,65 @@ def search_solution(N, start_code, end_code):
     solutions = set()
 
     start_states = {start: ""}
-    # start_stack = [start]
     start_stack = deque()
     start_stack.append(start)
 
     end_states = {end: ""}
-    # end_stack = [end]
     end_stack = deque()
     end_stack.append(end)
 
-    stack = start_stack
-    forward_states = start_states
-    forward_state = start
-    backward_states = end_states
-    backward_state = end
-    direction = "forward"
+    while len(start_stack) > 0 and len(end_stack) > 0:
+        forward_state = start_stack.pop()
+        backward_state = end_stack.pop()
+        forward_ops = start_states[forward_state]
+        backward_ops = end_states[backward_state]
 
-    # stack = deque()
-    # stack.append(start)
-
-    # states = {start: 0}
-    # stack = [start]
-
-    while len(stack) > 0:
-        state = stack.pop()
-        # state = heappop(stack)
-        state_ops = forward_states[state]
-
-
-        if state in backward_states:
-            if direction == "forward":
-                fops = [REVERSE_OPS[c] for c in state_ops]
-                bops = [c for c in backward_states[state]][::-1]
-                # print(f"fmerge:{fops} and {bops}")
-            elif direction == "backward":
-                fops = [REVERSE_OPS[c] for c in backward_states[state]]
-                bops = [c for c in state_ops[::-1]]
-                # print(f"bmerge:{fops} and {bops}")
+        if forward_state in end_states:
+            fops = [REVERSE_OPS[c] for c in forward_ops]
+            bops = [c for c in end_states[forward_state]][::-1]
             ops = fops + bops
             solution = ''.join(ops)
-
-            # print(f"{direction[0]}{len(solution)} {solution}")
             solutions.add(solution)
 
             if not shortage_solution or len(solution) < len(shortage_solution):
                 shortage_solution = solution
 
-            # continue
+        if backward_state in start_states:
+            fops = [REVERSE_OPS[c] for c in start_states[backward_state]]
+            bops = [c for c in backward_ops[::-1]]
+            ops = fops + bops
+            solution = ''.join(ops)
+            solutions.add(solution)
 
+            if not shortage_solution or len(solution) < len(shortage_solution):
+                shortage_solution = solution
 
-        if shortage_solution and len(shortage_solution) < len(state_ops):
-            continue
+        for op_key in forward_state.possible_op_keys():
+            new_state = forward_state.do_op(op_key)
+            new_ops = forward_ops+OPS[op_key]
 
-
-        # if state in forward_states and forward_states[state] < len(state.ops_history):
-        #     continue
-        # else:
-        #     forward_states[state] = len(state.ops_history)
-
-
-        
-
-        for op_key in state.possible_op_keys():
-            new_state = state.do_op(op_key)
-            new_ops = state_ops+OPS[op_key]
-
-            if new_state in forward_states and len(forward_states[new_state]) < len(new_ops):
+            if new_state in start_states and len(start_states[new_state]) < len(new_ops):
                 continue
-            else:
-                forward_states[new_state] = new_ops
-                stack.append(new_state)
-                # heappush(stack, new_state)
 
+            if shortage_solution and len(shortage_solution) < len(new_ops):
+                continue
 
-        if direction == "backward" and len(start_stack) > 0:
-            stack = start_stack
-            forward_states = start_states
-            forward_state = start
-            backward_states = end_states
-            backward_state = end
-            direction = "forward"
-        elif direction == "forward" and len(end_stack) > 0:
-            stack = end_stack
-            forward_states = end_states
-            forward_state = end
-            backward_states = start_states
-            backward_state = start
-            direction = "backward"
+            start_states[new_state] = new_ops
+            start_stack.append(new_state)
 
+        for op_key in backward_state.possible_op_keys():
+            new_state = backward_state.do_op(op_key)
+            new_ops = backward_ops+OPS[op_key]
+
+            if new_state in end_states and len(end_states[new_state]) < len(new_ops):
+                continue
+
+            if shortage_solution and len(shortage_solution) < len(new_ops):
+                continue
+
+            end_states[new_state] = new_ops
+            end_stack.append(new_state)
+            # heappush(stack, new_state)
 
     return [solution for solution in solutions 
             if len(solution) == len(shortage_solution)]
@@ -317,16 +287,3 @@ if __name__ == "__main__":
     # solutions = search_solution(4, "WRBBRRBBRRBBRRBB", "WBRBBRBRRBRBBRBR")
     # print(solutions)
     # print(solutions_checksum(solutions))
-
-
-    # N = int(input())
-    
-    # S = ""
-    # while len(S) != (N * N):
-    #     S += input().rstrip()
-
-    # E = ""
-    # while len(E) != (N * N):
-    #     E += input().rstrip()
-
-    # print(N, S, E)
