@@ -16,32 +16,6 @@ CODE_TO_STR = {
     B: "B"
 }
 
-RBORDERS = {
-    2: {2, 4},
-    3: {3, 6, 9},
-    4: {4, 8, 12, 16}
-}
-
-LBORDERS = {
-    2: {-1, 1},
-    3: {-1, 2, 5},
-    4: {-1, 3, 7, 11}
-}
-
-OPS = {
-    "left": "L",
-    "right": "R",
-    "up":"U",
-    "down": "D"
-}
-
-CODE_TO_OPS = {
-    "L": "left",
-    "R": "right",
-    "U": "up",
-    "D": "down"
-}
-
 REVERSE_OPS = {
     "L": "R",
     "R": "L",
@@ -50,205 +24,120 @@ REVERSE_OPS = {
 }
 
 
-class Slider(object):
-    def __init__(self, N, code, w, target_code):
-        self.code = code
+class Shifts(object):
+    def __init__(self, N):
         self.N = N
+        self.shifts = [[] for _ in range((self.N * self.N))]
+        self.generate()
+
+    def generate(self):
+        rborders = {r+self.N for r in range(0, (self.N * self.N), self.N)}
+        lborders = {r-1 for r in range(0, (self.N * self.N), self.N)}
+        ops = [
+            (1, "R", lambda w: w not in rborders),
+            (-1, "L", lambda w: w not in lborders),
+            (self.N, "D", lambda w: w < (self.N * self.N)),
+            (-self.N, "U", lambda w: w >= 0) 
+        ]
+
+        for w in range((self.N * self.N)):
+            pos_ops = [
+                (w+offset, code)
+                for offset, code, iscorrect in ops
+                if iscorrect(w+offset)
+            ]
+            self.shifts[w] = pos_ops
+
+    def make(self, slider, prev_ops):
+        for pos, op_code in self.shifts[slider.w]:
+            code = list(slider.code)
+            code[pos], code[slider.w] = code[slider.w], code[pos]
+            yield (Slider(code, pos), "".join((prev_ops,op_code)))
+
+
+class Slider(object):
+    def __init__(self, code, w):
+        self.code = tuple(code)
         self.w = w
-        self.hash = hash(tuple(self.code))
-        self.diff = 0
-        self.target_code = target_code
-        
 
     @classmethod
-    def from_str_code(cls, N, str_code, target_code=None):
+    def from_str_code(cls, N, str_code):
         code = [STR_TO_CODE[c] for c in str_code]
         w = code.index(W)
-        return cls(N, code, w, target_code)
+        return cls(code, w)
 
-    @classmethod
-    def from_int_code(cls, N, int_code, target_code):
-        code = [int(c) for c in str(int_code)]
-        w = code.index(W)
-        return cls(N, code, w, target_code)
-
-    @property
-    def target_code(self):
-        return self._target_code
-
-    @target_code.setter
-    def target_code(self, target_code):
-        self._target_code = target_code
-        self._calc_diff()
-
-    def _calc_diff(self):
-        if not self.target_code:
-            return
-        for c1 in self.code:
-            for c2 in self.target_code:
-                if c1 != c2:
-                    self.diff += 1
-
-    def _shift(self, pos, op):
-        code = list(self.code)
-        c = code[pos]
-        code[pos] = W
-        code[self.w] = c
-
-        return Slider(self.N, code, pos, self.target_code)
-
-    def can_right(self):
-        pos = self.w + 1
-        if pos in RBORDERS[self.N]:
-            return False
-        return True
-
-    def right(self):
-        pos = self.w + 1
-        return self._shift(pos, "right")
-
-    def can_left(self):
-        pos = self.w - 1
-        if pos in LBORDERS[self.N]:
-            return False
-        return True
-
-    def left(self):
-        pos = self.w - 1
-        return self._shift(pos, "left")
-        
-    def can_up(self):
-        pos = self.w - self.N
-        if pos < 0:
-            return False
-        return True
-
-    def up(self):
-        pos = self.w - self.N
-        return self._shift(pos, "up")
-
-    def can_down(self):
-        pos = self.w + self.N
-        if pos >= len(self.code):
-            return False
-        return True
-
-    def down(self):
-        pos = self.w + self.N
-        return self._shift(pos, "down")
-
-    def possible_op_keys(self):
-        if self.can_left():
-            yield "left"
-        if self.can_right():
-            yield "right"
-        if self.can_up():
-            yield "up"
-        if self.can_down():
-            yield "down"
-
-    def do_op(self, op_key):
-        op = getattr(self, op_key)
-        return op()
-
-    def __int__(self):
-        return int(''.join(map(str, self.code)))
-        
     def __str__(self):
         return "".join([CODE_TO_STR[c] for c in self.code])
 
-    def __repr__(self):
-        return f"N:{self.N}, w:{self.w}, code: {str(self)}"
-
     def __eq__(self, other): 
-        # if not isinstance(other, Slider):
-        #     return False
-        return self.hash == other.hash
+        return self.code == other.code
 
     def __hash__(self):
-        return self.hash
+        return hash(self.code)
 
-    def __lt__(self, other):
-        return self.diff < other.diff
+def next_states(states, shifts, shortage_solution):
+    new_states = dict()
+    for state, ops in states.items():
+        for new_state, new_ops in shifts.make(state, ops):
+            if shortage_solution and len(shortage_solution) < len(new_ops):
+                continue
+            if new_state in states:
+                continue
+            new_states[new_state] = new_ops
+    return new_states
 
-    def __le__(self, other):
-        return self.diff <= other.diff
-
-    def __gt__(self, other):
-        self.diff > other.diff
-
-    def __ge__(self, other):
-        self.diff >= other.diff
-
-    
 def search_solution(N, start_code, end_code):
     end = Slider.from_str_code(N, end_code)
-    start = Slider.from_str_code(N, start_code, target_code=end.code)
-    end.target_code = start.code
+    start = Slider.from_str_code(N, start_code)
+    shifts = Shifts(N)
     
     shortage_solution = None
     solutions = set()
 
-    start_states = {start: ""}
-    start_stack = deque()
-    start_stack.append(start)
+    head_states = {start: ""}
+    tail_states = {end: ""}
 
-    end_states = {end: ""}
-    end_stack = deque()
-    end_stack.append(end)
+    direction = "forward"
+    states = head_states
+    other_states = tail_states
+    
+    new_states = next_states(states, shifts, shortage_solution)
+    while len(new_states) > 0:
 
-    while len(start_stack) > 0 and len(end_stack) > 0:
-        forward_state = start_stack.pop()
-        backward_state = end_stack.pop()
-        forward_ops = start_states[forward_state]
-        backward_ops = end_states[backward_state]
+        for state, ops in new_states.items():
+            if state in other_states:
+                if direction == "forward":
+                    fops = [REVERSE_OPS[c] for c in ops]
+                    bops = [c for c in other_states[state]][::-1]
+                    ops = fops + bops
+                    solution = ''.join(ops)
+                    solutions.add(solution)
 
-        if forward_state in end_states:
-            fops = [REVERSE_OPS[c] for c in forward_ops]
-            bops = [c for c in end_states[forward_state]][::-1]
-            ops = fops + bops
-            solution = ''.join(ops)
-            solutions.add(solution)
+                    if not shortage_solution or len(solution) < len(shortage_solution):
+                        shortage_solution = solution
 
-            if not shortage_solution or len(solution) < len(shortage_solution):
-                shortage_solution = solution
+                elif direction == "backward":
+                    fops = [REVERSE_OPS[c] for c in other_states[state]]
+                    bops = [c for c in ops[::-1]]
+                    ops = fops + bops
+                    solution = ''.join(ops)
+                    solutions.add(solution)
 
-        if backward_state in start_states:
-            fops = [REVERSE_OPS[c] for c in start_states[backward_state]]
-            bops = [c for c in backward_ops[::-1]]
-            ops = fops + bops
-            solution = ''.join(ops)
-            solutions.add(solution)
+                    if not shortage_solution or len(solution) < len(shortage_solution):
+                        shortage_solution = solution
 
-            if not shortage_solution or len(solution) < len(shortage_solution):
-                shortage_solution = solution
+        states.update(new_states)
 
-        for op_key in forward_state.possible_op_keys():
-            new_state = forward_state.do_op(op_key)
-            new_ops = forward_ops+OPS[op_key]
+        if direction == "forward":
+            states = tail_states
+            other_states = head_states
+            direction = "backward"
+        elif direction == "backward":
+            states = head_states
+            other_states = tail_states
+            direction = "forward"
 
-            if new_state in start_states and len(start_states[new_state]) < len(new_ops):
-                continue
-
-            if shortage_solution and len(shortage_solution) < len(new_ops):
-                continue
-
-            start_states[new_state] = new_ops
-            start_stack.append(new_state)
-
-        for op_key in backward_state.possible_op_keys():
-            new_state = backward_state.do_op(op_key)
-            new_ops = backward_ops+OPS[op_key]
-
-            if new_state in end_states and len(end_states[new_state]) < len(new_ops):
-                continue
-
-            if shortage_solution and len(shortage_solution) < len(new_ops):
-                continue
-
-            end_states[new_state] = new_ops
-            end_stack.append(new_state)
-            # heappush(stack, new_state)
+        new_states = next_states(states, shifts, shortage_solution)
 
     return [solution for solution in solutions 
             if len(solution) == len(shortage_solution)]
@@ -280,10 +169,10 @@ if __name__ == "__main__":
     # print(solutions)
     # assert solutions_checksum(solutions) == 18553
 
-    solutions = search_solution(3, "BBBBWRRRR", "RBRBWBRBR")
-    print(solutions)
-    assert solutions_checksum(solutions) == 86665639
-
-    # solutions = search_solution(4, "WRBBRRBBRRBBRRBB", "WBRBBRBRRBRBBRBR")
+    # solutions = search_solution(3, "BBBBWRRRR", "RBRBWBRBR")
     # print(solutions)
-    # print(solutions_checksum(solutions))
+    # assert solutions_checksum(solutions) == 86665639
+
+    solutions = search_solution(4, "WRBBRRBBRRBBRRBB", "WBRBBRBRRBRBBRBR")
+    print(solutions)
+    print(solutions_checksum(solutions))
