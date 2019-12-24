@@ -48,27 +48,26 @@ class Shifts(object):
 
     def make(self, slider, prev_ops):
         for pos, op_code in self.shifts[slider.w]:
-            if REVERSE_OPS[op_code] == slider.prev_op:
+            if prev_ops and REVERSE_OPS[op_code] == prev_ops[-1]:
                 continue
 
             code = list(slider.code)
             code[pos], code[slider.w] = code[slider.w], code[pos]
             ops = "".join((prev_ops, op_code))
 
-            yield (Slider(code, pos, op_code), ops)
+            yield (Slider(code, pos), ops)
 
 
 class Slider(object):
-    def __init__(self, code, w, prev_op):
+    def __init__(self, code, w):
         self.code = tuple(code)
         self.w = w
-        self.prev_op = prev_op
 
     @classmethod
     def from_str_code(cls, str_code):
         code = [STR_TO_CODE[c] for c in str_code]
         w = code.index(W)
-        return cls(code, w, "")
+        return cls(code, w)
 
     def __str__(self):
         return "".join([CODE_TO_STR[c] for c in self.code])
@@ -84,8 +83,6 @@ def next_states(states, shifts):
     new_states = dict()
     for state, ops in states.items():
         for new_state, new_ops in shifts.make(state, ops):
-            if new_state in states:
-                continue
             new_states[new_state] = new_ops
     return new_states
 
@@ -160,6 +157,9 @@ if __name__ == "__main__":
     solutions = search_solution(4, "WRBBRRBBRRBBRRBB", "WBRBBRBRRBRBBRBR")
     print(solutions)
     assert solutions_checksum(solutions) == 96356848
+
+    solutions = search_solution(4, "RBRBBRBRRBRBBBRW", "BRBRRRBBBBRBRBRW")
+    print(solutions)
 
     # fptr = open(os.environ['OUTPUT_PATH'], 'w')
     # N = int(input())
